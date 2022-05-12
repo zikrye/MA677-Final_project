@@ -22,13 +22,13 @@ ggplot(plot_rain1, aes(x = num, y = rain))+
   geom_line(aes(color = year)) + 
   ggtitle("Rainfalls in each year")
 
-# total rain in each year  
+# total rain in each year, dry years can be identified based on the total rainfall level
 plot_rain2 <- plot_rain1 %>% group_by(year) %>% summarise(Total = sum(rain))
 ggplot(plot_rain2, aes(x = year, y = Total))+
   geom_col()+
   ggtitle("Total rainfall by year")
 
-# histogram of rain level
+# histogram of rain level in different transformed forms
 ggplot(plot_rain1, aes(x = rain))+
   geom_histogram()+
   ggtitle("Histogram of rainfall")
@@ -45,6 +45,7 @@ ggplot(plot_rain1, aes(x = log(rain)))+
 hist(plot_rain1$rain, breaks = 50,probability = T ,main = "Histogram of rain level over 5 years", xlab = "rain level")
 lines(density(plot_rain1$rain), col="red", lwd=2)
 
+# different years were marked by squared shade in gradient colors
 plot_rain1 %>% mutate(n = 1:dim(plot_rain1)[1]) %>% select(n, rain) %>% ggplot(aes(x = n, y = rain))+
   geom_line() + 
   annotate("rect", xmin = 1, xmax = 48, ymin = 0, ymax = 2.2, alpha = .1,fill = "red") +
@@ -62,6 +63,8 @@ plot_rain1 %>% mutate(n = 1:dim(plot_rain1)[1]) %>% select(n, rain) %>% ggplot(a
 
 ```
 
+## Parameters estimation
+
 ```{r}
 df <- plot_rain1 %>% mutate(n = 1:dim(plot_rain1)[1]) %>% select(n, rain) 
 set.seed(200)
@@ -76,7 +79,7 @@ nll <- function(theta0,theta1) {
 
 est <- stats4::mle(minuslog = nll, start = list(theta0 = 2, theta1 = 0))
 summary(est)
-pred.ts <- (exp(coef(est)['theta0'] + df$n[idx]*coef(est)['theta1'] ))
+pred.ts <- exp(coef(est)['theta0'] + df$n[idx]*coef(est)['theta1'] )
 rmse(pred.ts, df$rain[idx])
 
 lm.fit <-  lm(log(rain) ~ n, data = df[-idx, ])
