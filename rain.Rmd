@@ -1,0 +1,90 @@
+---
+title: "rains"
+author: "Clare Tang"
+date: '2022-05-11'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(caret)
+```
+
+## data exploration
+
+```{r warning=FALSE}
+rain <- readxl::read_xlsx("Illinois_rain_1960-1964.xlsx")
+plot_rain1 <- rain %>% mutate(num = 1:dim(rain)) %>% gather(key = "year", value = "rain", -num) %>% drop_na()
+ggplot(plot_rain1, aes(x = num, y = rain))+
+  geom_line(aes(color = year)) + 
+  ggtitle("Rainfalls in each year")
+
+# total rain in each year  
+plot_rain2 <- plot_rain1 %>% group_by(year) %>% summarise(Total = sum(rain))
+ggplot(plot_rain2, aes(x = year, y = Total))+
+  geom_col()+
+  ggtitle("Total rainfall by year")
+
+# histogram of rain level
+ggplot(plot_rain1, aes(x = rain))+
+  geom_histogram()+
+  ggtitle("Histogram of rainfall")
+
+ggplot(plot_rain1, aes(x = sqrt(rain)))+
+  geom_histogram()+
+  ggtitle("Histogram of rainfall in sqrt form")
+
+ggplot(plot_rain1, aes(x = log(rain)))+
+  geom_histogram()+
+  ggtitle("Histogram of rainfall in logarithmic form")
+
+# distribution of rainfall
+hist(plot_rain1$rain, breaks = 50,probability = T ,main = "Histogram of rain level over 5 years", xlab = "rain level")
+lines(density(plot_rain1$rain), col="red", lwd=2)
+
+plot_rain1 %>% mutate(n = 1:dim(plot_rain1)[1]) %>% select(n, rain) %>% ggplot(aes(x = n, y = rain))+
+  geom_line() + 
+  annotate("rect", xmin = 1, xmax = 48, ymin = 0, ymax = 2.2, alpha = .1,fill = "red") +
+  annotate("text", x = 24, y = 2.25, label = "1960") +
+  annotate("rect", xmin = 48, xmax = 96, ymin = 0, ymax = 2.2, alpha = .2,fill = "red") +
+  annotate("text", x = 72, y = 2.25, label = "1961") +
+  annotate("rect", xmin = 96, xmax = 152, ymin = 0, ymax = 2.2, alpha = .3,fill = "red") + 
+  annotate("text", x = 124, y = 2.25, label = "1962") +
+  annotate("rect", xmin = 152, xmax = 189, ymin = 0, ymax = 2.2, alpha = .4,fill = "red") +
+  annotate("text", x = 170.5, y = 2.25, label = "1963") +
+  annotate("rect", xmin = 189, xmax = 227, ymin = 0, ymax = 2.2, alpha = .5,fill = "red") +
+  annotate("text", x = 208, y = 2.25, label = "1964")+
+  ggtitle("Rainfall change by year")
+
+
+```
+
+```{r}
+df <- plot_rain1 %>% mutate(n = 1:dim(plot_rain1)[1]) %>% select(n, rain) 
+set.seed(200)
+idx <- createDataPartition(df$rain, p = 0.25, list = FALSE)
+
+nll <- function(theta0,theta1) {
+    x <- df$n[-idx]
+    y <- df$rain[-idx]
+    mu = exp(theta0 + x*theta1)
+    -sum(y*(log(mu)) - mu)
+}
+
+est <- stats4::mle(minuslog = nll, start = list(theta0 = 2, theta1 = 0))
+summary(est)
+pred.ts <- (exp(coef(est)['theta0'] + df$n[idx]*coef(est)['theta1'] ))
+rmse(pred.ts, df$rain[idx])
+
+lm.fit <-  lm(log(rain) ~ n, data = df[-idx, ])
+pred.lm <- predict(lm.fit, df[idx, ])
+rmse(exp(pred.lm), df$rain[idx])
+plot(lm.fit)
+
+```
+
+- RMSE for the standard linear model is higher than our model with Poisson distribution
+

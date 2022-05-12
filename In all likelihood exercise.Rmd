@@ -8,6 +8,11 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(ggplot2)
+library(AID)
+library(MASS)
+library(car)
+library(fitdistrplus)
+
 ```
 
 ## 4.25
@@ -60,27 +65,80 @@ check
 
 ```{r}
 # which transformation would be sensible to analyse/present data
-
 weight <- c(0.4, 1.0, 1.9, 3.0, 5.5, 
             8.1, 12.1, 25.6, 50.0, 56.0, 
             70.0, 115.0, 115.0, 119.5, 154.5, 
             157.0, 175.0, 179.0, 180.0, 406.0, 
             419.0, 423.0, 440.0, 655.0, 680.0, 
             1320.0, 4603.0, 5712.0)
-qqnorm(weight, main = "(a) Adult weight data", xlab = "Quantiles of standard normal")
+qqnorm(weight, main = "Original Adult weight data", xlab = "Quantiles of standard normal")
+qqline(weight)
 
+# maximum likelihood estimation of Box-Cox power transformation parameter
+out1 <- boxcoxnc(weight, method = "mle", lambda = seq(-2,2,0.0001), verbose = F, plot = T)
+lambda1 <- out1$lambda.hat
+model1 <- lm(((weight^lambda1-1)/lambda1) ~ 1)
+qqnorm(model1$residuals, main = "Adult weight data", xlab = "Quantiles of standard normal")
+qqline(model1$residuals)
+    
+out2 <- boxcox(weight ~ 1, lambda = seq(-2,2,0.0001), plotit = T)
+lambda2 <- out2$x[which.max(out2$y)]
+model2 <- lm(((weight^lambda2-1)/lambda2) ~ 1)
+qqnorm(model2$residuals, main = "Adult weight data", xlab = "Quantiles of standard normal")
+qqline(model2$residuals)
 
+out3 <- powerTransform(weight, family = "bcPower")
+lambda3 <- out3$lambda
+model3 <- lm(((weight^lambda3-1)/lambda3) ~ 1)
+qqnorm(model3$residuals, main = "Adult weight data", xlab = "Quantiles of standard normal")
+qqline(model3$residuals)
 
+# square-root transform
+sr <- sqrt(weight)
+qqnorm(sr, main = "Square root adult weight data", xlab = "Quantiles of standard normal")
+qqline(sr)
+
+# log-transform
+log <- log(weight)
+qqnorm(log, main = "Log Adult weight data", xlab = "Quantiles of standard normal")
+qqline(log)
 ```
 
-
-
-
-
+$log(y)$ and $(y^λ-1)/λ$ perform well because the transformed points fall along a straight diagonal line in Q-Q plot, which means the transformed data-set follows a normal distribution. 
 
 ## 4.27
 
+(a) Summary statistics
+
 ```{r}
+Jan <- c(0.15, 0.25, 0.10, 0.20, 1.85, 1.97, 0.80, 0.20, 0.10, 0.50,
+         0.82, 0.40, 1.80, 0.20, 1.12, 1.83, 0.45, 3.17, 0.89, 0.31,
+         0.59, 0.10, 0.10, 0.90, 0.10, 0.25, 0.10, 0.90)
+July <- c(0.30, 0.22, 0.10, 0.12, 0.20, 0.10, 0.10, 0.10, 0.10, 0.10,
+          0.10, 0.17, 0.20, 2.80, 0.85, 0.10, 0.10, 1.23, 0.45, 0.30,
+          0.20, 1.20, 0.10, 0.15, 0.10, 0.20, 0.10, 0.20, 0.35, 0.62,
+          0.20, 1.22, 0.30, 0.80, 0.15, 1.53, 0.10, 0.20, 0.30, 0.40,
+          0.23, 0.20, 0.10, 0.10, 0.60, 0.20, 0.50, 0.15, 0.60, 0.30,
+          0.80, 1.10, 0.20, 0.10, 0.10, 0.10, 0.42, 0.85, 1.60, 0.10, 
+          0.25, 0.10, 0.20, 0.10)
+
+hist(Jan, breaks = 10)
+hist(July, breaks = 10)
+
+qqnorm(Jan)
+qqline(Jan)
+
+qqnorm(July)
+qqline(July)
+
+fit1 <- fitdist(Jan, distr = "gamma", method = "mle")
+summary(fit1)
+plot(fit1)
+
+fit2 <- fitdist(July, distr = "gamma", method = "mle")
+summary(fit2)
+plot(fit2)
+
 
 ```
 
