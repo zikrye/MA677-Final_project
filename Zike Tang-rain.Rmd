@@ -1,0 +1,144 @@
+---
+title: "rains"
+author: "Clare Tang"
+date: '2022-05-11'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(tidyverse)
+library(dplyr)
+library(caret)
+library(stats4)
+library(ModelMetrics)
+
+```
+
+## data exploration
+
+- Here is a plot for the rain precipitation change for each year. 
+- Different color refers to different years. 
+- We can see that there are large large differences between different storms and years. 
+
+```{r warning=FALSE}
+rain <- readxl::read_xlsx("Illinois_rain_1960-1964.xlsx")
+plot_rain1 <- rain %>% mutate(num = 1:dim(rain)) %>% gather(key = "year", value = "rain", -num) %>% drop_na()
+ggplot(plot_rain1, aes(x = num, y = rain))+
+  geom_line(aes(color = year)) + 
+  ggtitle("Rainfalls in each year")
+```
+
+- Here I show the total rain precipitation level for each year together with the number of storms in each year which is in red line. 
+- We can conclude that there is a heavier rainfall for the year 1961 and there are more storms in 1952 but with lower total precipitation. It might indicate that the individual storm precipitation level in 1961 is higher. 
+
+```{r}
+# total rain in each year, dry years can be identified based on the total rainfall level
+plot_rain2 <- plot_rain1 %>% group_by(year) %>% summarise(Total = sum(rain), n = n()) 
+
+ggplot(plot_rain2,)+
+  geom_col(aes(x = year, y = Total))+
+  labs(title = "Total rainfall and number of storms by year", y = "Total rainfall in inches")+ 
+  geom_line(aes(x = year, y = n/4, group = 1), stat="identity", colour = "red")+
+  scale_y_continuous(sec.axis = sec_axis(~.*4, name = "Number of storms"))+ 
+  geom_text(aes(x = year, y = n/4, label = n), colour = "red", vjust = -.4)+
+  geom_text(aes(x = year, y = Total, label = Total), vjust = -.3)
+```
+
+```{r}
+# histogram of rain level in different transformed forms
+ggplot(plot_rain1, aes(x = rain, y = ..density..))+
+  geom_histogram(binwidth = .1)+
+  ggtitle("Histogram of rainfall")+
+  geom_density(color = "red", size = 1)
+
+ggplot(plot_rain1, aes(x = sqrt(rain), y = ..density..))+
+  geom_histogram(binwidth = .1)+
+  ggtitle("Histogram of rainfall in sqrt form")+
+  geom_density(color = "red", size = 1)
+
+ggplot(plot_rain1, aes(x = log(rain), y = ..density..))+
+  geom_histogram(binwidth = .1)+
+  ggtitle("Histogram of rainfall in logarithmic form")+
+  geom_density(color = "red", size = 1)
+
+# distribution of rainfall
+hist(plot_rain1$rain, breaks = 50,probability = T ,main = "Histogram of rain level over 5 years", xlab = "rain level")
+lines(density(plot_rain1$rain), col="red", lwd=2)
+
+# different years were marked by squared shade in gradient colors
+plot_rain1 %>% mutate(n = 1:dim(plot_rain1)[1]) %>% select(n, rain) %>% ggplot(aes(x = n, y = rain))+
+  geom_line() + 
+  annotate("rect", xmin = 1, xmax = 48, ymin = 0, ymax = 2.2, alpha = .1,fill = "red") +
+  annotate("text", x = 24, y = 2.25, label = "1960") +
+  annotate("rect", xmin = 48, xmax = 96, ymin = 0, ymax = 2.2, alpha = .2,fill = "red") +
+  annotate("text", x = 72, y = 2.25, label = "1961") +
+  annotate("rect", xmin = 96, xmax = 152, ymin = 0, ymax = 2.2, alpha = .3,fill = "red") + 
+  annotate("text", x = 124, y = 2.25, label = "1962") +
+  annotate("rect", xmin = 152, xmax = 189, ymin = 0, ymax = 2.2, alpha = .4,fill = "red") +
+  annotate("text", x = 170.5, y = 2.25, label = "1963") +
+  annotate("rect", xmin = 189, xmax = 227, ymin = 0, ymax = 2.2, alpha = .5,fill = "red") +
+  annotate("text", x = 208, y = 2.25, label = "1964")+
+  ggtitle("Rainfall change by year")
+
+
+```
+
+## Parameters estimation
+
+```{r}
+df <- plot_rain1 %>% mutate(n = 1:dim(plot_rain1)[1]) %>% select(n, rain) 
+set.seed(200)
+
+# training and testing set split
+idx <- createDataPartition(df$rain, p = 0.25, list = FALSE)
+
+# maximum likelihood estimation
+nll <- function(theta0,theta1) {
+    x <- df$n[-idx]
+    y <- df$rain[-idx]
+    mu = exp(theta0 + x*theta1)
+    -sum(y*(log(mu)) - mu)
+}
+
+est <- stats4::mle(minuslog = nll, start = list(theta0 = 2, theta1 = 0))
+summary(est)
+pred.ts <- exp(coef(est)['theta0'] + df$n[idx]*coef(est)['theta1'] )
+rmse(pred.ts, df$rain[idx])
+
+# linear model estimation
+lm.fit <-  lm(log(rain) ~ n, data = df[-idx, ])
+pred.lm <- predict(lm.fit, df[idx, ])
+rmse(exp(pred.lm), df$rain[idx])
+plot(lm.fit)
+
+```
+
+- RMSE for the standard linear model is higher than our model with Poisson distribution
+
+## Wet and dry years
+
+```{r}
+
+ggplot(plot_rain1, aes(x = year, y = rain, color = year)) + 
+  geom_boxplot()+
+  ggtitle(("Boxplot for rain level"))+
+  geom_jitter(width = .1, alpha = .2)+
+  theme(legend.position = "none")
+
+# identify number of storms with more than .8 rain value in each year 
+plot_rain1 %>% filter(rain >= 1) %>% count(year) 
+
+
+
+```
+
+## Discussion
+
+- There are only five years of data here and I believe more data for more years is needed to be included to have a more complete representation while at the same time variability can be lowered. 
+
+
+
+
+
